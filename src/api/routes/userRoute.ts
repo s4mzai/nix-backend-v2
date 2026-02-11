@@ -8,6 +8,7 @@ import {
   updateUserController,
   deleteUserController,
   postBulkUserController,
+  deleteUserBySuperuser
 } from "../controllers/userController";
 import { protect } from "../middlewares/authMiddleware";
 import protected_route from "../middlewares/permsMiddlewareInit";
@@ -41,7 +42,11 @@ router
   );
 
 router
-  .route("delete-user/:id")
+  .route("/delete-user/:id")
   .delete(protect, deleteProfileProtect, deleteUserController);
+
+router
+  .route("/delete-user-superuser/:id")
+  .delete(protect, deleteUserBySuperuser);
 
 export default router;

@@ -399,9 +399,11 @@ export const deleteUserController = asyncErrorHandler(
     const target_user_id = new mongoose.Types.ObjectId(
       req.body.target_user_id as string,
     );
-    const new_owner = new mongoose.Types.ObjectId(process.env.EMAIL_USER_OBJID);
+    const new_owner = process.env.EMAIL_USER_OBJID 
+      ? new mongoose.Types.ObjectId(process.env.EMAIL_USER_OBJID)
+      : null;
 
-    if (target_user_id.equals(new_owner)) {
+    if (new_owner && target_user_id.equals(new_owner)) {
       const err = new CustomError(
         "You cannot delete the default account!",
         StatusCode.FORBIDDEN,
@@ -444,6 +446,72 @@ export const deleteUserController = asyncErrorHandler(
     );
 
     await user.deleteOne();
+
+    res.status(StatusCode.OK).json({
+      status: "success",
+      message: "User deleted successfully",
+    });
+  },
+);
+
+/**
+ * @description Deletes a user (superuser only)
+ * @route DELETE /delete-user-superuser/:id
+ * @param req - The HTTP request object.
+ * @param res - The HTTP response object.
+ * @returns A JSON response indicating the success of the user deletion.
+ * @access Superuser only
+ * @howItWorks
+ * - Checks if the current user is a superuser
+ * - Prevents deletion of the default account
+ * - Prevents self-deletion
+ * - Transfers blog ownership to default user
+ * - Deletes the user account
+ */
+export const deleteUserBySuperuser = asyncErrorHandler(
+  async (req, res, next) => {
+    const { id } = req.params;
+    const target_user_id = new mongoose.Types.ObjectId(id);
+    const current_user_id = new mongoose.Types.ObjectId(res.locals.user_id);
+    
+    const currentUser = await UserService.checkUserExists({ _id: current_user_id });
+    if (!currentUser || currentUser.role_id?._id?.toString() !== process.env.SUPERUSER_ROLE_ID) {
+      const err = new CustomError(
+        "Only superusers can delete users",
+        StatusCode.FORBIDDEN,
+      );
+      return next(err);
+    }
+
+    if (target_user_id.equals(current_user_id)) {
+      const err = new CustomError(
+        "You cannot delete your own account",
+        StatusCode.FORBIDDEN,
+      );
+      return next(err);
+    }
+
+    const targetUser = await UserService.checkUserExists({ _id: target_user_id });
+    if (!targetUser) {
+      const error = new CustomError(
+        "User not found",
+        StatusCode.NOT_FOUND,
+      );
+      return next(error);
+    }
+
+    const new_owner = process.env.EMAIL_USER_OBJID 
+      ? new mongoose.Types.ObjectId(process.env.EMAIL_USER_OBJID)
+      : null;
+    
+    if (new_owner) {
+      await Blog.updateMany(
+        { user: target_user_id },
+        { user: new_owner }
+      );
+    }
+
+    await targetUser.deleteOne();
 
     res.status(StatusCode.OK).json({
       status: "success",
