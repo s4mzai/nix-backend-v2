@@ -26,7 +26,7 @@ const get_thumbnail = async ({
     thumbnail_type === "true"
       ? dimension_map(image_type)
       : (thumbnail_type && parseInt(thumbnail_type)) ||
-        dimension_map(image_type);
+      dimension_map(image_type);
 
   const thumnail_query = `${filename}_${dimension}`;
 
@@ -153,8 +153,6 @@ export const upload_image = asyncErrorHandler(async (req, res, next) => {
   const req_file = req.file;
   const is_thumbnail = req.query.thumbnail === "true";
   const image_type = (req.body.image_type as ImageType) || ImageType.General;
-  console.log("Image type", image_type);
-
   if (!req_file) {
     const err = new CustomError(
       "Please upload an image and with a proper extension",
@@ -264,10 +262,16 @@ export const get_image = asyncErrorHandler(async (req, res, next) => {
   }
 
   if (thumbnail) {
+    let image_type: ImageType | undefined = undefined;
+    try {
+      image_type = parseInt(req.query.image_type as string);
+    } catch (e) {
+      console.error("Could not parse image type from query please send valid integer");
+    }
     // not empty string and not undefined
     const img_buff = await get_thumbnail({
       og_filename: filename,
-      image_type: (req.body?.image_type as ImageType) || ImageType.General,
+      image_type: image_type || ImageType.General,
       thumbnail_type: thumbnail.toString(),
     });
     return res.contentType("png").send(img_buff);
